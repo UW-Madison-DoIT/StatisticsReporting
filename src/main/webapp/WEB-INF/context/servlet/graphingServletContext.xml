@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+    http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-2.0.xsd
+    http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-2.0.xsd
+    http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-2.0.xsd">
+    
+    
+    <!--
+     | Validators for use by the controllers
+     +-->
+    <bean id="queryCommandValidator" class="edu.wisc.my.stats.web.command.validation.QueryCommandValidator"/>
+        
+    <!--
+     | Property Editor Registrars
+     +-->
+    <bean id="propertyEditorRegistrar" class="edu.wisc.my.stats.web.support.PropertyEditorRegistrarImpl">
+        <property name="propertyEditors">
+            <map key-type="java.lang.Class" value-type="java.beans.PropertyEditor">
+                <entry key="java.util.Date">
+                    <bean class="org.springframework.beans.propertyeditors.CustomDateEditor">
+                        <constructor-arg index="0">
+                            <ref bean="ISO8601ShortPattern"/>
+                        </constructor-arg>
+                        <constructor-arg index="1">
+                            <value>true</value>
+                        </constructor-arg>
+                    </bean>
+                </entry>
+                <entry key="edu.wisc.my.stats.domain.Fact">
+                    <bean class="edu.wisc.my.stats.web.support.QueryFactEditor">
+                        <property name="factProvider"><ref bean="queryInformationProvider"/></property>
+                    </bean>
+                </entry>
+                <entry key="edu.wisc.my.stats.domain.TimeResolution">
+                    <bean class="edu.wisc.my.stats.web.support.TimeResolutionEditor"/>
+                </entry>
+            </map>
+        </property>
+    </bean>
+    
+
+    <!--
+     | Actuall, in-use controllers
+     +-->
+    <bean id="graphingFormController" class="edu.wisc.my.stats.web.GraphingFormController">
+        <property name="pages">
+            <list value-type="java.lang.String">
+                <value>queryParameters</value>
+                <value>extraParameters</value>
+                <value>advancedOptions</value>
+                <value>graphQuery</value>
+            </list>
+        </property>
+
+        <property name="propertyEditorRegistrar"><ref local="propertyEditorRegistrar"/></property>
+        <property name="commandClass" value="edu.wisc.my.stats.web.command.QueryCommand"/>
+        <property name="validator"><ref local="queryCommandValidator"/></property>
+
+        <property name="factProvider"><ref bean="queryInformationProvider"/></property>
+        <property name="queryInformationProvider"><ref bean="queryInformationProvider"/></property>
+        <property name="extraParameterValuesProvider"><ref bean="extraParameterValuesProvider"/></property>
+        <property name="queryExecutionManager"><ref bean="queryExecutionManager"/></property>
+    </bean>
+    
+    
+    <!--
+     | Handler mappings to determine the correct controller.
+     +-->
+    <bean id="urlHandlerMapping" class="org.springframework.web.servlet.handler.SimpleUrlHandlerMapping">
+        <property name="alwaysUseFullPath"><value>true</value></property>
+        <property name="urlMap">
+            <map key-type="java.lang.String">
+                <entry key="graph.html"           value-ref="graphingFormController"/>
+            </map>
+        </property>
+    </bean>
+
+    <bean class="org.springframework.beans.factory.annotation.RequiredAnnotationBeanPostProcessor" lazy-init="false"/>
+</beans>

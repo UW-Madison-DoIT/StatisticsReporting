@@ -1,0 +1,4 @@
+jdbc.portalStats.driver=oracle.jdbc.driver.OracleDriver
+jdbc.portalStats.url=
+jdbc.portalStats.username=
+jdbc.portalStats.password=

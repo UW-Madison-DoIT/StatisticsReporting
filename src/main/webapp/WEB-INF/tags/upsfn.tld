@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<taglib xmlns="http://java.sun.com/xml/ns/j2ee"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee http://java.sun.com/xml/ns/j2ee/web-jsptaglibrary_2_0.xsd"
+    version="2.0">
+    
+    <description>JSTL 1.1 functions library</description>
+    <display-name>JSTL functions</display-name>
+    <tlib-version>1.1</tlib-version>
+    <short-name>upsfn</short-name>
+    <uri>http://my.wisc.edu/jsp/jstl/stats/functions</uri>
+    
+    <function>
+        <description> Converts a millisecond time stamp into a Date. </description>
+        <name>toDate</name>
+        <function-class>edu.wisc.my.stats.tag.Functions</function-class>
+        <function-signature>java.util.Date toDate(long)</function-signature>
+        <example>
+            ${upsfn:toDate(12318247129312)}
+        </example>
+    </function>
+    
+    <function>
+        <description> Gets an Iterable row of entries for a Table and a row key </description>
+        <name>rowEntries</name>
+        <function-class>edu.wisc.my.stats.tag.Functions</function-class>
+        <function-signature>java.lang.Iterable rowEntries(edu.wisc.my.stats.util.Table, java.lang.Object)</function-signature>
+        <example>
+            ${upsfn:rowEntries(table, rowKey)}
+        </example>
+    </function>
+</taglib>

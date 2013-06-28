@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+    http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-2.0.xsd
+    http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-2.0.xsd
+    http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-2.0.xsd">
+
+    <bean id="propertyConfigurer" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer" lazy-init="false">
+        <property name="ignoreResourceNotFound" value="true"/>
+        <property name="locations">
+            <list>
+                <value>datasource.properties</value>
+            </list>
+        </property>
+    </bean>
+    
+    <!-- Formatting Beans -->
+    <bean id="messageSource" class="org.springframework.context.support.ResourceBundleMessageSource">
+        <property name="basenames">
+            <list>
+                <value>messages</value>
+            </list>
+        </property>										
+    </bean>
+    
+    <!-- For dealing with the URL arguments for queries -->
+    <bean id="ISO8601ShortPattern" class="java.text.SimpleDateFormat">
+        <constructor-arg index="0">
+            <value>yyyy-MM-dd</value>
+        </constructor-arg>
+        <property name="lenient"><value>true</value></property>
+    </bean>
+    
+    <!-- Servlet Filters -->
+    <bean id="relativeDateQueryFilter" class="edu.wisc.my.stats.web.filter.RelativeDateQueryFilter">
+        <property name="dateParameters">
+            <set value-type="java.lang.String">
+                <value>queryParameters.start</value>
+                <value>queryParameters.end</value>
+            </set>
+        </property>
+        <property name="dateFormat">
+            <ref local="ISO8601ShortPattern"/>
+        </property>
+    </bean>
+    
+    
+    <!-- Stats Query Generation Beans -->
+    <bean id="queryExecutionManager" class="edu.wisc.my.stats.query.support.QueryExecutionManagerImpl">
+        <property name="queryInformationProvider">
+            <ref local="queryInformationProvider"/>
+        </property>
+        <property name="queryRunner">
+            <ref local="queryRunner"/>
+        </property>
+    </bean>
+    
+    <bean id="queryInformationProvider" class="edu.wisc.my.stats.query.support.QueryInformationProviderImpl">
+        <property name="queryInformationDao">
+            <ref local="mapQueryInformationDao"/>
+        </property>
+    </bean>
+    
+    <bean id="queryRunner" class="edu.wisc.my.stats.query.support.JdbcQueryRunner">
+        <property name="dataSource">
+            <ref local="dataSource"/>
+        </property>
+        <property name="queryCompiler">
+            <ref local="queryCompiler"/>
+        </property>
+        <property name="databaseInformationProvider">
+            <ref local="uwDataWareHouseInformationProvider"/>
+        </property>
+    </bean>
+    
+    <bean id="queryCompiler" class="edu.wisc.my.stats.query.support.QueryCompilerImpl">
+        <property name="databaseInformationProvider">
+            <ref local="uwDataWareHouseInformationProvider"/>
+        </property>
+    </bean>
+    
+    <bean id="uwDataWareHouseInformationProvider" class="edu.wisc.my.stats.query.support.UWDataWareHouseInformationProvider"/>
+    
+    
+    <!-- DAOs to get the possible queries from -->
+    <bean id="mapQueryInformationDao" class="edu.wisc.my.stats.dao.support.MapQueryInformationDao">
+        <property name="queryInfoSet">
+            <set value-type="edu.wisc.my.stats.domain.QueryInformation">
+                <bean class="edu.wisc.my.stats.domain.QueryInformation">
+                    <property name="baseSelectSql">
+                        <value>SELECT PC.CHANNEL_NAME AS CHANNEL_NAME, SUM(PCRA.CHANNEL_REQUEST_COUNT) AS CHANNEL_REQUEST_COUNT, AVG(PCRA.AVG_CHANNEL_RENDER_TIME) AS AVG_CHANNEL_RENDER_TIME, MAX(PCRA.MAX_CHANNEL_RENDER_TIME) AS MAX_CHANNEL_RENDER_TIME</value>
+                    </property>
+                    <property name="fromSql">
+                        <value>FROM PSTATS_DM.PORTAL_CHANNEL_REQUEST_AGGR PCRA LEFT JOIN PSTATS_DM.PORTAL_CHANNEL PC ON PCRA.PORTAL_CHANNEL_KEY = PC.PORTAL_CHANNEL_KEY, PSTATS_DM.DATE_DIMENSION DD, PSTATS_DM.TIME_DIMENSION TD</value>
+                    </property>
+                    <property name="baseWhereSql">
+                        <value>WHERE (DD.DATE_DIMENSION_KEY = PCRA.DATE_DIMENSION_KEY AND TD.TIME_DIMENSION_KEY = PCRA.TIME_DIMENSION_KEY)</value>
+                    </property>
+                    <property name="factsToColumns">
+                        <map key-type="edu.wisc.my.stats.domain.Fact" value-type="java.util.Set">
+                            <entry key-ref="totalChannelRequests">
+                                <set value-type="edu.wisc.my.stats.domain.ColumnInformation">
+                                    <ref local="CHANNEL_REQUEST_COUNT"/>
+                                </set>
+                            </entry>
+                            <entry key-ref="averageChannelRenderTime">
+                                <set value-type="edu.wisc.my.stats.domain.ColumnInformation">
+                                    <ref local="AVG_CHANNEL_RENDER_TIME"/>
+                                </set>
+                            </entry>
+                            <entry key-ref="maxChannelRenderTime">
+                                <set value-type="edu.wisc.my.stats.domain.ColumnInformation">
+                                    <ref local="MAX_CHANNEL_RENDER_TIME"/>
+                                </set>
+                            </entry>
+                        </map>
+                    </property>
+                    <property name="extraParameters">
+                        <map key-type="edu.wisc.my.stats.domain.ExtraParameter" value-type="edu.wisc.my.stats.domain.ColumnInformation">
+                            <entry key-ref="channelNameExtraParam" value-ref="CHANNEL_NAME"/>
+                        </map>
+                    </property>
+                </bean>
+                <!--
+                    SELECT PT.PORTAL_TAB_NAME AS PORTAL_TAB_NAME, SUM(PPRA.PAGE_REQUEST_COUNT) AS PAGE_REQUEST_COUNT, AVG(PPRA.AVG_PAGE_RENDER_TIME) AS AVG_PAGE_RENDER_TIME, MAX(PPRA.MAX_PAGE_RENDER_TIME) AS MAX_PAGE_RENDER_TIME, DD.CALENDAR_YEAR_NUMBER, DD.CALENDAR_MONTH_NUMBER, DD.CALENDAR_DAY_NUMBER, TD.HOUR
+                    FROM PSTATS_DM.PORTAL_PAGE_REQUEST_AGGR PPRA LEFT JOIN PSTATS_DM.PORTAL_TAB PT ON PPRA.PORTAL_TAB_KEY = PT.PORTAL_TAB_KEY, PSTATS_DM.DATE_DIMENSION DD, PSTATS_DM.TIME_DIMENSION TD
+                    WHERE (DD.DATE_DIMENSION_KEY = PPRA.DATE_DIMENSION_KEY AND TD.TIME_DIMENSION_KEY = PPRA.TIME_DIMENSION_KEY) AND DD.FULL_DATE BETWEEN TO_DATE('2007/01/01', 'yyyy/mm/dd') AND TO_DATE('2007/01/07', 'yyyy/mm/dd')
+                    GROUP BY PORTAL_TAB_NAME, DD.CALENDAR_YEAR_NUMBER, DD.CALENDAR_MONTH_NUMBER, DD.CALENDAR_WEEK_NUMBER, DD.CALENDAR_DAY_NUMBER, TD.HOUR
+                    ORDER BY DD.CALENDAR_YEAR_NUMBER, DD.CALENDAR_MONTH_NUMBER, DD.CALENDAR_WEEK_NUMBER, DD.CALENDAR_DAY_NUMBER, TD.HOUR
+                -->
+                <bean class="edu.wisc.my.stats.domain.QueryInformation">
+                    <property name="baseSelectSql">
+                        <value>SELECT PT.PORTAL_TAB_NAME AS PORTAL_TAB_NAME, SUM(PPRA.PAGE_REQUEST_COUNT) AS PAGE_REQUEST_COUNT, AVG(PPRA.AVG_PAGE_RENDER_TIME) AS AVG_PAGE_RENDER_TIME, MAX(PPRA.MAX_PAGE_RENDER_TIME) AS MAX_PAGE_RENDER_TIME</value>
+                    </property>
+                    <property name="fromSql">
+                        <value>FROM PSTATS_DM.PORTAL_PAGE_REQUEST_AGGR PPRA LEFT JOIN PSTATS_DM.PORTAL_TAB PT ON PPRA.PORTAL_TAB_KEY = PT.PORTAL_TAB_KEY, PSTATS_DM.DATE_DIMENSION DD, PSTATS_DM.TIME_DIMENSION TD</value>
+                    </property>
+                    <property name="baseWhereSql">
+                        <value>WHERE (DD.DATE_DIMENSION_KEY = PPRA.DATE_DIMENSION_KEY AND TD.TIME_DIMENSION_KEY = PPRA.TIME_DIMENSION_KEY)</value>
+                    </property>
+                    <property name="factsToColumns">
+                        <map key-type="edu.wisc.my.stats.domain.Fact" value-type="java.util.Set">
+                            <entry key-ref="totalPageRequests">
+                                <set value-type="edu.wisc.my.stats.domain.ColumnInformation">
+                                    <ref local="PAGE_REQUEST_COUNT"/>
+                                </set>
+                            </entry>
+                            <entry key-ref="averagePageRenderTime">
+                                <set value-type="edu.wisc.my.stats.domain.ColumnInformation">
+                                    <ref local="AVG_PAGE_RENDER_TIME"/>
+                                </set>
+                            </entry>
+                            <entry key-ref="maxPageRenderTime">
+                                <set value-type="edu.wisc.my.stats.domain.ColumnInformation">
+                                    <ref local="MAX_PAGE_RENDER_TIME"/>
+                                </set>
+                            </entry>
+                        </map>
+                    </property>
+                    <property name="extraParameters">
+                        <map key-type="edu.wisc.my.stats.domain.ExtraParameter" value-type="edu.wisc.my.stats.domain.ColumnInformation">
+                            <entry key-ref="tabNameExtraParam" value-ref="PORTAL_TAB_NAME"/>
+                        </map>
+                    </property>
+                </bean>
+            </set>
+        </property>
+    </bean>
+    
+    <!-- Facts -->
+    <bean id="totalChannelRequests" class="edu.wisc.my.stats.domain.Fact">
+        <property name="name" value="Total Channel Requests"/>
+    </bean>
+    <bean id="averageChannelRenderTime" class="edu.wisc.my.stats.domain.Fact">
+        <property name="name" value="Average Channel Render Time"/>
+    </bean>
+    <bean id="maxChannelRenderTime" class="edu.wisc.my.stats.domain.Fact">
+        <property name="name" value="Maximum Channel Render Time"/>
+    </bean>
+    <bean id="totalPageRequests" class="edu.wisc.my.stats.domain.Fact">
+        <property name="name" value="Total Page Requests"/>
+    </bean>
+    <bean id="averagePageRenderTime" class="edu.wisc.my.stats.domain.Fact">
+        <property name="name" value="Average Page Render Time"/>
+    </bean>
+    <bean id="maxPageRenderTime" class="edu.wisc.my.stats.domain.Fact">
+        <property name="name" value="Maximum Page Render Time"/>
+    </bean>
+    
+    
+    <!-- Column Descriptions -->
+    <bean id="CHANNEL_REQUEST_COUNT" class="edu.wisc.my.stats.domain.ColumnInformation">
+        <property name="fullName" value="CHANNEL_REQUEST_COUNT"/>
+        <property name="alias" value="CHANNEL_REQUEST_COUNT"/>
+    </bean>
+    <bean id="AVG_CHANNEL_RENDER_TIME" class="edu.wisc.my.stats.domain.ColumnInformation">
+        <property name="fullName" value="AVG_CHANNEL_RENDER_TIME"/>
+        <property name="alias" value="AVG_CHANNEL_RENDER_TIME"/>
+    </bean>
+    <bean id="MAX_CHANNEL_RENDER_TIME" class="edu.wisc.my.stats.domain.ColumnInformation">
+        <property name="fullName" value="MAX_CHANNEL_RENDER_TIME"/>
+        <property name="alias" value="MAX_CHANNEL_RENDER_TIME"/>
+    </bean>
+    <bean id="CHANNEL_NAME" class="edu.wisc.my.stats.domain.ColumnInformation">
+        <property name="fullName" value="PC.CHANNEL_NAME"/>
+        <property name="alias" value="CHANNEL_NAME"/>
+    </bean>
+    <bean id="PAGE_REQUEST_COUNT" class="edu.wisc.my.stats.domain.ColumnInformation">
+        <property name="fullName" value="PAGE_REQUEST_COUNT"/>
+        <property name="alias" value="PAGE_REQUEST_COUNT"/>
+    </bean>
+    <bean id="AVG_PAGE_RENDER_TIME" class="edu.wisc.my.stats.domain.ColumnInformation">
+        <property name="fullName" value="AVG_PAGE_RENDER_TIME"/>
+        <property name="alias" value="AVG_PAGE_RENDER_TIME"/>
+    </bean>
+    <bean id="MAX_PAGE_RENDER_TIME" class="edu.wisc.my.stats.domain.ColumnInformation">
+        <property name="fullName" value="MAX_PAGE_RENDER_TIME"/>
+        <property name="alias" value="MAX_PAGE_RENDER_TIME"/>
+    </bean>
+    <bean id="PORTAL_TAB_NAME" class="edu.wisc.my.stats.domain.ColumnInformation">
+        <property name="fullName" value="PT.PORTAL_TAB_NAME"/>
+        <property name="alias" value="PORTAL_TAB_NAME"/>
+    </bean>
+    
+    
+    <!-- Extra Parameters -->
+    <bean id="channelNameExtraParam" class="edu.wisc.my.stats.domain.ExtraParameter">
+        <property name="name" value="Channel Name"/>
+        <property name="multivalued" value="true"/>
+    </bean>
+    <bean id="tabNameExtraParam" class="edu.wisc.my.stats.domain.ExtraParameter">
+        <property name="name" value="Tab Name"/>
+        <property name="multivalued" value="true"/>
+    </bean>
+    
+    
+    <bean id="extraParameterValuesProvider" class="edu.wisc.my.stats.query.support.JdbcExtraParameterValuesProvider">
+        <property name="dataSource">
+            <ref local="dataSource"/>
+        </property>
+        <property name="parameterSqlMap">
+            <map key-type="edu.wisc.my.stats.domain.ExtraParameter" value-type="java.lang.String">
+                <entry key-ref="channelNameExtraParam">
+                    <value>SELECT DISTINCT PC.CHANNEL_NAME AS CHANNEL_NAME FROM PSTATS_DM.PORTAL_CHANNEL PC ORDER BY CHANNEL_NAME</value>
+                </entry>
+                <entry key-ref="tabNameExtraParam">
+                    <value>SELECT DISTINCT PT.PORTAL_TAB_NAME AS PORTAL_TAB_NAME FROM PSTATS_DM.PORTAL_TAB PT ORDER BY PORTAL_TAB_NAME</value>
+                </entry>
+            </map>
+        </property>
+    </bean>
+    
+    
+    <!-- View Resolvers -->
+    <bean id="jspViewResolver" class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+        <property name="order" value="10"/>
+        <property name="cache" value="false"/>
+        <property name="viewClass" value="org.springframework.web.servlet.view.JstlView"/>
+        <property name="prefix" value="/WEB-INF/jsp/"/>
+        <property name="suffix" value=".jsp"/>
+    </bean>
+    
+    
+    <!-- Persistence Code -->
+    <bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+        <property name="driverClassName"><value>${jdbc.portalStats.driver}</value></property>
+        <property name="url"><value>${jdbc.portalStats.url}</value></property>
+        <property name="username"><value>${jdbc.portalStats.username}</value></property>
+        <property name="password"><value>${jdbc.portalStats.password}</value></property>
+        
+        <property name="initialSize"><value>2</value></property>
+        <property name="maxActive"><value>1024</value></property>
+        <property name="maxIdle"><value>16</value></property>
+        <property name="minIdle"><value>2</value></property>
+        <property name="maxWait"><value>1000</value></property>
+        
+        <property name="validationQuery"><value>SELECT 1 FROM DUAL</value></property>
+        <property name="testWhileIdle"><value>true</value></property>
+        <property name="timeBetweenEvictionRunsMillis"><value>60000</value></property>
+    </bean>
+    
+    <bean class="org.springframework.beans.factory.annotation.RequiredAnnotationBeanPostProcessor" lazy-init="false"/>
+</beans>
